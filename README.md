@@ -1,87 +1,77 @@
-## Overview
-In this assignment, you will implement a PointNet based architecture for classification and segmentation with point clouds (you don't need to worry about the tranformation blocks). Q1 and Q2 focus on implementing, training and testing models. Q3 asks you to quantitatively analyze model robustness. Q4 (bonus) involves locality. 
+# 16-825 Assignment 5: Point Cloud Classification and Segmentation
 
-`models.py` is where you will define model structures. `train.py` loads data, trains models, logs trajectories and saves checkpoints. `eval_cls.py` and `eval_seg.py` contain script to evaluate model accuracy and visualize segmentation result. Feel free to modify any file as needed.
+PointNet (without transformation blocks) for 3-class classification (chair / vase / lamp) and 6-part chair segmentation, two robustness studies (Q3), and PointNet++ (single-scale grouping) for the locality bonus (Q4).
 
-## Table of Contents
+## Setup
 
-- [Environment Setup](#environment-setup)
-- [Data Preparation](#data-preparation)
-- [Q1. Classification Model (30 points)](#q1-classification-model-30-points)
-- [Q2. Segmentation Model (30 points)](#q2-segmentation-model-30-points)
-- [Q3. Robustness Analysis (20 points)](#q3-robustness-analysis-20-points)
-- [Q4. Bonus Question - Locality (20 points)](#q4-bonus-question---locality-20-points)
+Use the environment from earlier assignments (PyTorch + PyTorch3D, plus `requirements.txt`).
 
-## Environment Setup
-You should be able to use the environment used for previous assignments. If you need to create a new environment, please follow the set up instruction at [Assignment1](https://github.com/learning3d/assignment1). We include the same requirements.txt as A1 for your convenience.
+Download the data into the repository root:
 
-## Data Preparation
-Please download and extract the dataset for this assigment. We host the dataset on huggingface [here](https://huggingface.co/datasets/learning3dvision/assignment5/tree/main).
-
-Download the dataset from the repository root:
-
-```
-$ pip install huggingface_hub
-$ hf download learning3dvision/assignment5 a5_data.zip --repo-type dataset --local-dir data_download
-$ unzip data_download/a5_data.zip -d ./
+```bash
+pip install huggingface_hub
+hf download learning3dvision/assignment5 a5_data.zip --repo-type dataset --local-dir data_download
+unzip data_download/a5_data.zip -d ./
 ```
 
-This writes a `data` folder at the repository root with two subfolders (`cls` and `seg`), each containing `.npy` files for training and testing.
+This creates `data/cls` and `data/seg`.
 
+## Running everything: `main.py`
 
+`main.py` is the single entry point for all the code in this assignment.
 
-## Q1. Classification Model (30 points)
-Implement the classification model in `models.py`.
+| Command | What it does |
+|---|---|
+| `python main.py q1` | Train PointNet classification (60 epochs, constant lr) |
+| `python main.py q2` | Train PointNet segmentation (60 epochs, cosine lr) |
+| `python main.py q4` | Train PointNet++ classification and segmentation (40 epochs, cosine lr) |
+| `python main.py train` | `q1` + `q2` + `q4` |
+| `python main.py report` | Compute every number and GIF in the report (`results.json`, `images/*.gif`) |
+| `python main.py plots` | Q3 accuracy plots (`images/q3_rotation.png`, `images/q3_num_points.png`) |
+| `python main.py all` | Train everything, then `report` and `plots` |
+| `python main.py eval_cls [flags]` | Evaluate classification once |
+| `python main.py eval_seg [flags]` | Evaluate segmentation once |
 
-- Input: points clouds from across 3 classes (chairs, vases and lamps objects)
+Flags after `eval_cls` / `eval_seg` go straight to `eval_cls.py` / `eval_seg.py`:
 
-- Output: propapibility distribution indicating predicted classification (Dimension: Batch * Number of Classes)
+| Flag | Meaning |
+|---|---|
+| `--arch pointnet2` | Use PointNet++ instead of PointNet |
+| `--num_points N` | Evaluate with N points per object (Q3 exp. 2) |
+| `--rot_deg D --rot_axis z` | Rotate every test object by D degrees (Q3 exp. 1) |
+| `--i IDX` | Object to visualize |
+| `--viz` | Save a GIF of object `IDX` (classification) |
 
-Complete model initialization and prediction in `train.py` and `eval_cls.py`. Run `python train.py --task cls` to train the model, and `python eval_cls.py` for evaluation (loads `checkpoints/cls/best_model.pt` by default). Check out the arguments and feel free to modify them as you want.
+Examples:
 
-Deliverables: On your website, 
+```bash
+python main.py eval_cls
+python main.py eval_cls --rot_deg 45 --rot_axis z
+python main.py eval_seg --num_points 100 --i 499
+python main.py eval_cls --arch pointnet2
+```
 
-- Report the test accuracy.
+Trained checkpoints are in `checkpoints/{cls,seg,cls_pointnet2,seg_pointnet2}/best_model.pt`, so the evaluation, `report` and `plots` commands work without retraining.
 
-- Visualize a few random test point clouds and mention the predicted classes for each. 
+## Files
 
-- Also visualize at least 1 failure prediction for each class (chair, vase and lamp),  and provide an interpretation of the failure in a few sentences.  
+| File | Contents |
+|---|---|
+| `main.py` | Entry point that runs all stages |
+| `models.py` | PointNet classification / segmentation and PointNet++ (SSG) models |
+| `train.py` | Training loop (random 2500-point subsets per batch, optional cosine lr) |
+| `eval_cls.py`, `eval_seg.py` | Test accuracy, rotation and point-count robustness, visualization |
+| `run_report.py` | Generates all report numbers and GIFs |
+| `make_plots.py` | Q3 plots from `results.json` |
+| `utils.py`, `data_loader.py` | Rendering, rotation, batched prediction, data loading |
+| `results.json` | All numbers used in the report |
+| `logs_txt/` | Training logs |
 
-## Q2. Segmentation Model (30 points) 
-Implement the segmentation model in `models.py`.  
+## Results
 
-- Input: points of chair objects (6 semantic segmentation classes) 
+| Model | Classification acc | Segmentation acc |
+|---|---|---|
+| PointNet | 97.17% | 90.17% |
+| PointNet++ (SSG) | 97.69% | 91.42% |
 
-- Output: segmentation of points (Dimension: Batch * Number of Points per Object * Number of Segmentation Classes)
-
-Complete model initialization and prediction in `train.py` and `eval_seg.py`. Run `python train.py --task seg` to train the model. Running `python eval_seg.py` will save two gif's, one for ground truth and the other for model prediction (loads `checkpoints/seg/best_model.pt` by default). Check out the arguments and feel free to modify them as you want. In particular, you may want to specify `--i` and `--load_checkpoint` arguments in `eval_seg.py` to use your desired model checkpoint on a particular object.
-
-**Deliverables**: On your website,
-
-- Report the test accuracy.
-
-- Visualize segmentation results of at least 5 objects (including 2 bad predictions) with corresponding ground truth
-
-- Report the prediction accuracy for each object, and provide an interpretation of the result in a few sentences.
-  
-## Q3. Robustness Analysis (20 points) 
-Conduct 2 experiments to analyze the robustness of your learned model. Each experiment is worth 10 points. A maximum of 20 points is possible for this question. Some possible suggestions are:
-1. You can rotate the input point clouds by certain degrees and report how much the accuracy falls
-2. You can input a different number of points points per object (modify `--num_points` when evaluating models in `eval_cls.py` and `eval_seg.py`)
-
-Each experiment should be done on both the classification and segmentation tasks. Please also feel free to try other ways of probing the robustness. 
-
-**Deliverables**: On your website, for **each experiment**,
-
-- Briefly describe your procedure 
-- For each task (classification and segmentation), report test accuracy and visualization on a few samples, in comparison with your results from Q1 & Q2.
-- Provide some interpretation of the results in a few sentences.
-
-## Q4. Bonus Question - Locality (20 points)
-Incorporate certain kind of locality as covered in the lecture (e.g. implement PointNet++, DGCNN, Transformers (https://arxiv.org/pdf/2012.09164v2.pdf), etc).
-
-**Deliverables**: On your website, 
-
-- Specify and briefly describe the model you have implemented
-- For each task (classification and segmentation), report the test accuracy of your best model, in comparison with your results from Q1 & Q2.
-- Visualize some results in comparison to ones obtained in the earlier questions
+All test numbers use the full 10,000 points per object.
