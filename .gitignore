@@ -5,3 +5,8 @@ assignment5/
 */logs
 */output
 __MACOSX/
+__pycache__/
+checkpoints/
+logs/
+output/
+data_download/

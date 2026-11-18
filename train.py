@@ -4,7 +4,7 @@ import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
-from models import cls_model, seg_model
+from models import cls_model, seg_model, build_model
 from data_loader import get_data_loader
 from utils import save_checkpoint, create_dir
 
@@ -19,8 +19,14 @@ def train(train_dataloader, model, opt, epoch, args, writer):
         point_clouds = point_clouds.to(args.device)
         labels = labels.to(args.device).to(torch.long)
 
+        if args.train_points < point_clouds.shape[1]:
+            ind = torch.randperm(point_clouds.shape[1], device=args.device)[:args.train_points]
+            point_clouds = point_clouds[:, ind]
+            if args.task == "seg":
+                labels = labels[:, ind]
+
         # ------ TO DO: Forward Pass ------
-        predictions = 
+        predictions = model(point_clouds)
 
         if (args.task == "seg"):
             labels = labels.reshape([-1])
@@ -29,7 +35,7 @@ def train(train_dataloader, model, opt, epoch, args, writer):
         # Compute Loss
         criterion = torch.nn.CrossEntropyLoss()
         loss = criterion(predictions, labels)
-        epoch_loss += loss
+        epoch_loss += loss.item()
 
         # Backward and Optimize
         opt.zero_grad()
@@ -55,7 +61,7 @@ def test(test_dataloader, model, epoch, args, writer):
 
             # ------ TO DO: Make Predictions ------
             with torch.no_grad():
-                pred_labels = 
+                pred_labels = model(point_clouds).argmax(dim=-1)
             correct_obj += pred_labels.eq(labels.data).cpu().sum().item()
             num_obj += labels.size()[0]
 
@@ -73,8 +79,8 @@ def test(test_dataloader, model, epoch, args, writer):
             labels = labels.to(args.device).to(torch.long)
 
             # ------ TO DO: Make Predictions ------
-            with torch.no_grad():     
-                pred_labels = 
+            with torch.no_grad():
+                pred_labels = model(point_clouds).argmax(dim=-1)
 
             correct_point += pred_labels.eq(labels.data).cpu().sum().item()
             num_point += labels.view([-1,1]).size()[0]
@@ -98,10 +104,7 @@ def main(args):
     writer = SummaryWriter('./logs/{0}'.format(args.task+"_"+args.exp_name))
 
     # ------ TO DO: Initialize Model ------
-    if args.task == "cls":
-        model = 
-    else:
-        model = 
+    model = build_model(args.task, args.arch, num_seg_class=args.num_seg_class).to(args.device)
     
     # Load Checkpoint 
     if args.load_checkpoint:
@@ -113,6 +116,7 @@ def main(args):
 
     # Optimizer
     opt = optim.Adam(model.parameters(), args.lr, betas=(0.9, 0.999))
+    sched = optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.num_epochs, eta_min=args.lr * 0.01) if args.cosine else None
 
     # Dataloader for Training & Testing
     train_dataloader = get_data_loader(args=args, train=True)
@@ -130,6 +134,9 @@ def main(args):
         # Train
         train_epoch_loss = train(train_dataloader, model, opt, epoch, args, writer)
         
+        if sched is not None:
+            sched.step()
+
         # Test
         current_acc = test(test_dataloader, model, epoch, args, writer)
 
@@ -157,6 +164,8 @@ def create_parser():
     # Model & Data hyper-parameters
     parser.add_argument('--task', type=str, default="cls", help='The task: cls or seg')
     parser.add_argument('--num_seg_class', type=int, default=6, help='The number of segmentation classes')
+    parser.add_argument('--arch', type=str, default="pointnet", help='pointnet or pointnet2')
+    parser.add_argument('--train_points', type=int, default=2500, help='Points sampled per object at train time')
 
     # Training hyper-parameters
     parser.add_argument('--num_epochs', type=int, default=250)
@@ -164,6 +173,7 @@ def create_parser():
     parser.add_argument('--num_workers', type=int, default=0, help='The number of threads to use for the DataLoader.')
     parser.add_argument('--lr', type=float, default=0.001, help='The learning rate (default 0.001)')
 
+    parser.add_argument('--cosine', action='store_true', help='Cosine learning-rate decay over num_epochs')
     parser.add_argument('--exp_name', type=str, default="exp", help='The name of the experiment')
 
     # Directories and checkpoint/sample iterations
@@ -182,5 +192,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
     args.checkpoint_dir = args.checkpoint_dir+"/"+args.task # checkpoint directory is task specific
+    if args.arch != "pointnet":
+        args.checkpoint_dir += "_" + args.arch
 
     main(args)

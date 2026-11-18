@@ -85,5 +85,43 @@ def viz_seg (verts, labels, path, device):
     rend = renderer(point_cloud, cameras=c).cpu().numpy() # (30, 256, 256, 3)
     rend = (rend * 255).astype(np.uint8)
 
-    imageio.mimsave(path, rend, fps=15)
+    imageio.mimsave(path, rend, fps=15, loop=0)
 
+
+
+def rotate_points(points, deg, axis='x'):
+    """Rotate (B, N, 3) or (N, 3) points by `deg` degrees about `axis` (x, y or z)."""
+    if deg == 0:
+        return points
+    t = np.deg2rad(deg)
+    c, s = np.cos(t), np.sin(t)
+    R = {'x': [[1, 0, 0], [0, c, -s], [0, s, c]],
+         'y': [[c, 0, s], [0, 1, 0], [-s, 0, c]],
+         'z': [[c, -s, 0], [s, c, 0], [0, 0, 1]]}[axis]
+    R = torch.tensor(R, dtype=points.dtype, device=points.device)
+    return points @ R.T
+
+
+@torch.no_grad()
+def batched_predict(model, data, batch_size, device):
+    """Run the model over `data` (B, N, 3) in mini-batches; returns argmax labels on CPU."""
+    model.eval()
+    preds = []
+    for i in range(0, data.shape[0], batch_size):
+        out = model(data[i:i + batch_size].to(device).float())
+        preds.append(out.argmax(dim=-1).cpu())
+    return torch.cat(preds)
+
+
+def viz_cloud(verts, path, device, color=(0.3, 0.5, 0.9), n_views=30):
+    """Render a single-colour 360-degree gif of a point cloud."""
+    dist, elev = 3, 0
+    azim = [180 - 360 // n_views * i for i in range(n_views)]
+    R, T = pytorch3d.renderer.cameras.look_at_view_transform(dist=dist, elev=elev, azim=azim, device=device)
+    c = pytorch3d.renderer.FoVPerspectiveCameras(R=R, T=T, fov=60, device=device)
+    v = verts.unsqueeze(0).repeat(n_views, 1, 1).to(torch.float)
+    rgb = torch.tensor(color, dtype=torch.float).view(1, 1, 3).expand(n_views, verts.shape[0], 3)
+    pc = pytorch3d.structures.Pointclouds(points=v, features=rgb).to(device)
+    renderer = get_points_renderer(image_size=256, device=device)
+    rend = (renderer(pc, cameras=c).cpu().numpy() * 255).astype(np.uint8)
+    imageio.mimsave(path, rend, fps=15, loop=0)

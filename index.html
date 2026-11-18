@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>16-825 Assignment 5</title>
+<style>
+:root { --bg:#fff; --fg:#1d1d1f; --muted:#5f6368; --line:#e3e3e3; --accent:#0b57d0; --code:#f4f4f6; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#141416; --fg:#e8e8ea; --muted:#a0a0a6; --line:#333; --accent:#8ab4f8; --code:#222226; } }
+:root[data-theme="dark"] { --bg:#141416; --fg:#e8e8ea; --muted:#a0a0a6; --line:#333; --accent:#8ab4f8; --code:#222226; }
+body { background:var(--bg); color:var(--fg); font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif; margin:0; }
+main { max-width:1000px; margin:0 auto; padding:24px 16px 80px; }
+h1 { font-size:1.9rem; margin-bottom:0; } h2 { border-bottom:1px solid var(--line); padding-bottom:6px; margin-top:48px; }
+h3 { margin-top:32px; } .muted { color:var(--muted); }
+img { max-width:100%; height:auto; border:1px solid var(--line); border-radius:4px; background:#fff; }
+figure { margin:0; } figcaption { color:var(--muted); font-size:.88rem; line-height:1.4; margin-top:4px; }
+.grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:12px 0; }
+.grid2 { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin:12px 0; }
+@media (max-width:700px){ .grid3, .grid2 { grid-template-columns:1fr 1fr; } }
+table { border-collapse:collapse; margin:12px 0; font-size:.95rem; display:block; overflow-x:auto; }
+th,td { border:1px solid var(--line); padding:4px 10px; text-align:center; } th { background:var(--code); }
+code,pre { background:var(--code); border-radius:4px; font-size:.88rem; } code { padding:1px 4px; }
+pre { padding:10px; overflow-x:auto; }
+.bad { color:#c5221f; } .ok { color:#188038; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bad { color:#f28b82; } :root:not([data-theme="light"]) .ok { color:#81c995; } }
+.legend span { display:inline-block; width:12px; height:12px; border:1px solid #999; vertical-align:middle; margin:0 4px 0 12px; }
+</style>
+</head>
+<body><main>
+<h1>16-825 Assignment 5: Point Cloud Classification and Segmentation</h1>
+<h3>Training setup</h3>
+<table>
+<tr><th>Setting</th><th>Value</th></tr>
+<tr><td>Optimizer</td><td>Adam, lr 1e-3</td></tr>
+<tr><td>Batch size</td><td>32</td></tr>
+<tr><td>Loss</td><td>Cross-entropy</td></tr>
+<tr><td>PointNet cls (Q1)</td><td>60 epochs, constant lr</td></tr>
+<tr><td>PointNet seg (Q2)</td><td>60 epochs, cosine decay to 1e-5</td></tr>
+<tr><td>PointNet++ cls / seg (Q4)</td><td>40 epochs, cosine decay</td></tr>
+<tr><td>Train points</td><td>Random 2500 of 10,000 per object each batch (fits 8 GB GPU, light augmentation)</td></tr>
+<tr><td>Test points</td><td>10,000</td></tr>
+</table>
+
+<!-- ================================================================ -->
+<h2>Q1. Classification Model</h2>
+<p>Architecture: a shared per-point MLP (3→64→64→64→128→1024, Conv1d + BN + ReLU), then a max-pool over points to get a 1024-d global feature, then FC layers 512→256→3 with BN, ReLU and dropout 0.3.</p>
+
+<p><b>Test accuracy: 97.17%</b> (926 / 953), best checkpoint at epoch 58.</p>
+<table>
+<tr><th>GT \ Pred</th><th>chair</th><th>vase</th><th>lamp</th><th>per-class acc</th></tr>
+<tr><th>chair (617)</th><td>616</td><td>1</td><td>0</td><td>99.8%</td></tr>
+<tr><th>vase (102)</th><td>1</td><td>89</td><td>12</td><td>87.3%</td></tr>
+<tr><th>lamp (234)</th><td>0</td><td>13</td><td>221</td><td>94.4%</td></tr>
+</table>
+
+<h3>Random test samples (all correct)</h3>
+<div class="grid3">
+<figure><img src="images/q1_ok_524.gif" alt="chair 524"><figcaption>#524: predicted <b>chair</b> (GT chair)</figcaption></figure>
+<figure><img src="images/q1_ok_392.gif" alt="chair 392"><figcaption>#392: predicted <b>chair</b> (GT chair)</figcaption></figure>
+<figure><img src="images/q1_ok_645.gif" alt="vase 645"><figcaption>#645: predicted <b>vase</b> (GT vase)</figcaption></figure>
+<figure><img src="images/q1_ok_641.gif" alt="vase 641"><figcaption>#641: predicted <b>vase</b> (GT vase)</figcaption></figure>
+<figure><img src="images/q1_ok_722.gif" alt="lamp 722"><figcaption>#722: predicted <b>lamp</b> (GT lamp)</figcaption></figure>
+<figure><img src="images/q1_ok_736.gif" alt="lamp 736"><figcaption>#736: predicted <b>lamp</b> (GT lamp)</figcaption></figure>
+</div>
+
+<h3>Failure cases (at least one per class)</h3>
+<div class="grid3">
+<figure><img src="images/q1_fail_406.gif" alt="chair failure"><figcaption>#406: GT <b>chair</b>, predicted <span class="bad">vase</span></figcaption></figure>
+<figure><img src="images/q1_fail_618.gif" alt="vase failure 1"><figcaption>#618: GT <b>vase</b>, predicted <span class="bad">lamp</span></figcaption></figure>
+<figure><img src="images/q1_fail_651.gif" alt="vase failure 2"><figcaption>#651: GT <b>vase</b>, predicted <span class="bad">lamp</span></figcaption></figure>
+<figure><img src="images/q1_fail_726.gif" alt="lamp failure 1"><figcaption>#726: GT <b>lamp</b>, predicted <span class="bad">vase</span></figcaption></figure>
+<figure><img src="images/q1_fail_777.gif" alt="lamp failure 2"><figcaption>#777: GT <b>lamp</b>, predicted <span class="bad">vase</span></figcaption></figure>
+</div>
+<p><b>Interpretation.</b> Nearly all errors are vase↔lamp confusions, because vases and lamps share a very similar global structure (a round body with thin parts on top). PointNet has no notion of local structure: it only max-pools independent per-point features, so it cannot pick up the fine local details that tell the two classes apart.</p>
+
+<!-- ================================================================ -->
+<h2>Q2. Segmentation Model</h2>
+<p>Architecture: per-point MLP 3→64→64 (local feature), then 64→128→1024 followed by a max-pool (global feature). The 1024-d global feature is copied to every point and concatenated with its 64-d local feature (1088-d). A per-point MLP 1088→512→256→128→6 produces the part logits.</p>
+<p><b>Test accuracy: 90.17%</b> (per-point, over 617 chairs × 10,000 points). Per-object accuracy has a median of 93.6%, a minimum of 45.3% and a maximum of 99.6%.</p>
+<p class="legend">Left = ground truth, right = prediction. Part colors:<span style="background:#fff"></span>white<span style="background:#f0f"></span>magenta<span style="background:#0ff"></span>cyan (back)<span style="background:#ff0"></span>yellow (arms)<span style="background:#00f"></span>blue (legs/base)<span style="background:#f00"></span>red (seat)</p>
+<div class="grid2">
+<figure><img src="images/q2_499.gif" alt="seg 499"><figcaption>#499: accuracy <b class="ok">98.2%</b></figcaption></figure>
+<figure><img src="images/q2_562.gif" alt="seg 562"><figcaption>#562: accuracy <b class="ok">99.5%</b></figcaption></figure>
+<figure><img src="images/q2_310.gif" alt="seg 310"><figcaption>#310: accuracy <b class="ok">92.4%</b></figcaption></figure>
+<figure><img src="images/q2_399.gif" alt="seg 399"><figcaption>#399: accuracy <b class="ok">88.9%</b></figcaption></figure>
+<figure><img src="images/q2_351.gif" alt="seg 351"><figcaption>#351 (bad): accuracy <b class="bad">45.3%</b></figcaption></figure>
+<figure><img src="images/q2_61.gif" alt="seg 61"><figcaption>#61 (bad): accuracy <b class="bad">48.0%</b></figcaption></figure>
+</div>
+<p><b>Interpretation.</b> Normal chairs (legs, a seat and a back) are segmented almost perfectly; the small errors sit on part boundaries. The bad cases are unusual shapes whose parts are not stacked by height. PointNet has no notion of local structure: each point is labeled from its own position plus one max-pooled global feature, so it mostly learns a height prior ("bottom = legs, middle = seat, top = back") that fails on these shapes.</p>
+
+<!-- ================================================================ -->
+<h2>Q3. Robustness Analysis</h2>
+<p>Both experiments use the Q1/Q2 checkpoints unchanged (no retraining), evaluated on the full test sets. Rows marked 0° or 10,000 are the Q1/Q2 baselines. The visualizations always show the same objects: classification #524 (chair) and segmentation #499.</p>
+
+<h3>Experiment 1: rotating the input</h3>
+<p><b>Procedure.</b> Rotate every test point cloud about the z axis (the camera's viewing axis in the renders, so the object tilts sideways) by θ ∈ {0, 15, 30, 45, 60, 90, 135, 180}°, then evaluate. Run with <code>python eval_cls.py --rot_deg 45 --rot_axis z</code> (and likewise for <code>eval_seg.py</code>).</p>
+<div class="grid2" style="align-items:start">
+<figure><img src="images/q3_rotation.png" alt="accuracy vs rotation"></figure>
+<table>
+<tr><th>θ</th><th>cls acc</th><th>seg acc</th></tr>
+<tr><td>0° (Q1/Q2)</td><td>97.2%</td><td>90.2%</td></tr>
+<tr><td>15°</td><td>89.3%</td><td>84.2%</td></tr>
+<tr><td>30°</td><td>61.5%</td><td>67.7%</td></tr>
+<tr><td>45°</td><td>38.7%</td><td>57.2%</td></tr>
+<tr><td>60°</td><td>26.8%</td><td>51.1%</td></tr>
+<tr><td>90°</td><td>25.5%</td><td>40.9%</td></tr>
+<tr><td>135°</td><td>24.3%</td><td>30.7%</td></tr>
+<tr><td>180°</td><td>63.7%</td><td>33.2%</td></tr>
+</table>
+</div>
+<div class="grid3">
+<figure><img src="images/q3_rot30_cls_524.gif" alt=""><figcaption>cls #524 at 30°: predicted <b class="ok">chair</b></figcaption></figure>
+<figure><img src="images/q3_rot60_cls_524.gif" alt=""><figcaption>cls #524 at 60°: predicted <b class="bad">vase</b></figcaption></figure>
+<figure><img src="images/q3_rot90_cls_524.gif" alt=""><figcaption>cls #524 at 90°: predicted <b class="bad">vase</b></figcaption></figure>
+</div>
+<div class="grid3">
+<figure><img src="images/q3_rot30_seg_499.gif" alt=""><figcaption>seg #499 at 30°: 65.6% (98.2% unrotated)</figcaption></figure>
+<figure><img src="images/q3_rot60_seg_499.gif" alt=""><figcaption>seg #499 at 60°: 54.1%</figcaption></figure>
+<figure><img src="images/q3_rot90_seg_499.gif" alt=""><figcaption>seg #499 at 90°: 34.7%</figcaption></figure>
+</div>
+<p><b>Interpretation.</b> PointNet without the T-Net is <em>not</em> rotation-invariant. <b>Max-pooling only removes the point order, not the orientation</b>: the first layer is a linear function of the raw xyz, so a rotated chair produces different features, and every training shape is upright. Accuracy drops sharply after 15–30°; at 60° classification is 26.8%, far below always guessing "chair" (64.7%), because a tilted chair loses the "legs below, back above" layout. Segmentation still labels points by their new height, so the horizontal bands cut across the tilted chair (#499 at 90°). Rotation augmentation, the T-Net, or rotation-invariant input features would help.</p>
+
+<h3>Experiment 2: number of input points</h3>
+<p><b>Procedure.</b> Evaluate with N ∈ {10000, 5000, 1000, 500, 100, 50, 10} points per object, using one fixed random subset of indices shared by all objects. Run with <code>python eval_cls.py --num_points 100</code> (and likewise for <code>eval_seg.py</code>).</p>
+<div class="grid2" style="align-items:start">
+<figure><img src="images/q3_num_points.png" alt="accuracy vs number of points"></figure>
+<table>
+<tr><th>N</th><th>cls acc</th><th>seg acc</th></tr>
+<tr><td>10000 (Q1/Q2)</td><td>97.2%</td><td>90.2%</td></tr>
+<tr><td>5000</td><td>97.3%</td><td>90.3%</td></tr>
+<tr><td>1000</td><td>96.7%</td><td>90.1%</td></tr>
+<tr><td>500</td><td>97.0%</td><td>89.1%</td></tr>
+<tr><td>100</td><td>93.5%</td><td>80.3%</td></tr>
+<tr><td>50</td><td>76.1%</td><td>74.3%</td></tr>
+<tr><td>10</td><td>25.6%</td><td>55.4%</td></tr>
+</table>
+</div>
+<div class="grid3">
+<figure><img src="images/q3_n1000_cls_524.gif" alt=""><figcaption>cls #524, N=1000: predicted <b class="ok">chair</b></figcaption></figure>
+<figure><img src="images/q3_n100_cls_524.gif" alt=""><figcaption>cls #524, N=100: predicted <b class="ok">chair</b></figcaption></figure>
+<figure><img src="images/q3_n50_cls_524.gif" alt=""><figcaption>cls #524, N=50: predicted <b class="ok">chair</b></figcaption></figure>
+</div>
+<div class="grid3">
+<figure><img src="images/q3_n1000_seg_499.gif" alt=""><figcaption>seg #499, N=1000: 97.7%</figcaption></figure>
+<figure><img src="images/q3_n100_seg_499.gif" alt=""><figcaption>seg #499, N=100: 92.0%</figcaption></figure>
+<figure><img src="images/q3_n50_seg_499.gif" alt=""><figcaption>seg #499, N=50: 62.0%</figcaption></figure>
+</div>
+<p><b>Interpretation.</b> PointNet is very robust to sparser inputs. Down to 500 points (5% of the original) both tasks lose less than 1.1 points of accuracy. This follows from the architecture: the global feature is a max over per-point features, and with a few hundred well-spread points the critical points that set each max are still nearly present. Training on random 2500-point subsets also helped. Below about 100 points the max-pooled descriptor loses the critical points for thin structures such as legs and lamp stems. Classification collapses at 10 points (25.6%): 943 of 953 objects are called lamp. Ten scattered points carry essentially no shape information, so the max-pooled feature falls into one region of feature space. Segmentation degrades more gracefully (55% at 10 points), because even with a poor global code the per-point height prior still assigns many points to the large back and seat parts.</p>
+
+<!-- ================================================================ -->
+<h2>Q4. Bonus: Locality with PointNet++</h2>
+<h3>Model</h3>
+<p>I implemented <b>PointNet++ with single-scale grouping</b> (<code>pn2_cls_model</code> / <code>pn2_seg_model</code> in <code>models.py</code>), using PyTorch3D's <code>sample_farthest_points</code>, <code>ball_query</code> and <code>knn_points</code>. PointNet applies one global max-pool to independent points. PointNet++ instead builds features hierarchically from <em>local neighborhoods</em>:</p>
+<ul>
+<li><b>Set abstraction (SA)</b>: farthest-point sampling picks S centroids. A ball query collects up to K neighbors within radius r around each centroid. A small shared PointNet runs on each neighborhood (neighbor coordinates relative to the centroid, plus the previous features), followed by a max-pool over the neighborhood. This is a learned "local convolution" on points.</li>
+<li><b>Classification</b>: SA(512 centroids, r=0.2, K=32, MLP 64-64-128), then SA(128, 0.4, 64, 128-128-256), then a global SA (256-512-1024), then FC 512→256→3 with dropout 0.4.</li>
+<li><b>Segmentation</b>: four SA levels (1024/256/64 centroids at r = 0.1/0.2/0.4, then global), followed by four <b>feature-propagation</b> layers. These upsample features back to every input point by inverse-distance-weighted 3-nearest-neighbor interpolation, with skip connections, then a per-point head 128→6.</li>
+<li>Same training recipe as PointNet: 2500 points per object, 40 epochs, cosine LR, and evaluation on all 10,000 points.</li>
+<li>Implementation note: running the per-group MLP as Conv2d + BatchNorm2d on <code>(B, C, S, K)</code> tensors hit a very slow cuDNN BatchNorm kernel (92% of step time). Flattening the groups to <code>(B, C, S·K)</code> with Conv1d + BatchNorm1d computes the same thing about 9× faster.</li>
+</ul>
+
+<h3>Results</h3>
+<table>
+<tr><th>Model</th><th>cls test acc</th><th>chair / vase / lamp</th><th>seg test acc</th><th>seg per-object median</th></tr>
+<tr><td>PointNet (Q1/Q2)</td><td>97.17%</td><td>99.8 / 87.3 / 94.4</td><td>90.17%</td><td>93.6%</td></tr>
+<tr><td><b>PointNet++ (SSG)</b></td><td><b>97.69%</b></td><td>99.7 / <b>90.2</b> / <b>95.7</b></td><td><b>91.42%</b></td><td><b>95.0%</b></td></tr>
+</table>
+<p class="muted">Farthest-point sampling uses a random start point, so PointNet++ test accuracy varies a little between runs. The best epoch scored 98.2% during training, and a fresh evaluation of the same checkpoint gives the 97.69% above.</p>
+
+<h3>Classification: PointNet's failure cases under PointNet++</h3>
+<p>PointNet++ makes 22 errors versus PointNet's 27, and only 9 of them are shared. It gets 4 of the 5 Q1 failure cases right:</p>
+<table>
+<tr><th>object</th><th>GT</th><th>PointNet</th><th>PointNet++</th></tr>
+<tr><td>#406</td><td>chair</td><td class="bad">vase</td><td class="bad">lamp</td></tr>
+<tr><td>#618</td><td>vase</td><td class="bad">lamp</td><td class="ok">vase</td></tr>
+<tr><td>#651</td><td>vase</td><td class="bad">lamp</td><td class="ok">vase</td></tr>
+<tr><td>#726</td><td>lamp</td><td class="bad">vase</td><td class="ok">lamp</td></tr>
+<tr><td>#777</td><td>lamp</td><td class="bad">vase</td><td class="ok">lamp</td></tr>
+</table>
+<p>The GIFs are the same as in Q1. The fixed cases are exactly the ones where the deciding evidence is a small local structure: the orchid's leaves and flower (#651), the shade-and-socket of the round-base table lamp (#726), and the chandelier's bulbs and arms (#777). PointNet's single global max-pool mixes those details away. PointNet++ encodes them first in local neighborhoods. The boxy chair #406 is still wrong, because it has no locally chair-like parts at all.</p>
+
+<h3>Segmentation comparison</h3>
+<p class="muted">Each GIF: ground truth (left) | PointNet++ prediction (right). Compare with the PointNet GIFs for the same objects in Q2.</p>
+<div class="grid2">
+<figure><img src="images/q2_pointnet2_61.gif" alt=""><figcaption>#61: PointNet 48.0% → PointNet++ <b class="ok">77.9%</b>. It now finds the arms (yellow) and the seat (red) inside the boxy frame, where PointNet painted the whole lower half as seat.</figcaption></figure>
+<figure><img src="images/q2_pointnet2_399.gif" alt=""><figcaption>#399: PointNet 88.9% → PointNet++ <b class="ok">95.0%</b>. The thin arm rests are cleanly separated from the back.</figcaption></figure>
+<figure><img src="images/q2_pointnet2_351.gif" alt=""><figcaption>#351: PointNet 45.3% → PointNet++ 47.9%. The barrel chair is still mostly wrong. Its parts are fused into one smooth shell, so local geometry gives no boundary cue either.</figcaption></figure>
+<figure><img src="images/q2_pointnet2_310.gif" alt=""><figcaption>#310: PointNet 92.4% → PointNet++ <b class="bad">79.0%</b>. A regression: seat and arm labels spread into the lower frame and the side panels.</figcaption></figure>
+<figure><img src="images/q2_pointnet2_499.gif" alt=""><figcaption>#499: 98.2% → 98.3%</figcaption></figure>
+<figure><img src="images/q2_pointnet2_562.gif" alt=""><figcaption>#562: 99.5% → 99.5%</figcaption></figure>
+</div>
+<p><b>Interpretation.</b> Locality helps most where the answer depends on fine local structure: thin parts (arm rests, legs, lamp stems) and part boundaries. This is where the per-object median goes up, from 93.6% to 95.0%. Overall, though, the gain is small, since both models still end with a global feature and ordinary chairs were already easy for PointNet.</p>
+<p><b>Trade-off: point density.</b> Locality needs enough points to work. With 1000 points PointNet++ still holds up (cls 96.9%, seg 88.5%, vs. PointNet's 96.7% and 90.1%). With 100 points it collapses (cls 26.4%, seg 32.4%), while PointNet keeps 93.5% and 80.3%. The ball-query radii work for dense input, but with sparse input each neighborhood has only one or two points. PointNet's per-point features don't depend on neighbors, so it handles both dense and sparse input. Training with random point dropout, or the multi-scale grouping from the PointNet++ paper, should fix this.</p>
+
+</main></body>
+</html>

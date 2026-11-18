@@ -1,0 +1,57 @@
+successfully loaded data
+======== start training for cls task ========
+(check tensorboard for plots of experiment logs/cls_pn2)
+epoch: 0   train loss: 46.2797   test accuracy: 0.9234
+checkpoint saved at epoch 0
+best model saved at epoch 0
+epoch: 1   train loss: 32.1050   test accuracy: 0.9601
+best model saved at epoch 1
+epoch: 2   train loss: 22.4458   test accuracy: 0.9622
+best model saved at epoch 2
+epoch: 3   train loss: 20.5066   test accuracy: 0.9633
+best model saved at epoch 3
+epoch: 4   train loss: 19.6895   test accuracy: 0.9549
+epoch: 5   train loss: 17.3840   test accuracy: 0.9633
+best model saved at epoch 5
+epoch: 6   train loss: 17.2902   test accuracy: 0.9643
+best model saved at epoch 6
+epoch: 7   train loss: 15.5064   test accuracy: 0.9675
+best model saved at epoch 7
+epoch: 8   train loss: 14.5896   test accuracy: 0.9759
+best model saved at epoch 8
+epoch: 9   train loss: 13.5105   test accuracy: 0.9748
+epoch: 10   train loss: 13.6796   test accuracy: 0.9738
+checkpoint saved at epoch 10
+epoch: 11   train loss: 12.2758   test accuracy: 0.9685
+epoch: 12   train loss: 11.8624   test accuracy: 0.9706
+epoch: 13   train loss: 10.3490   test accuracy: 0.9675
+epoch: 14   train loss: 9.8192   test accuracy: 0.9706
+epoch: 15   train loss: 10.0520   test accuracy: 0.9664
+epoch: 16   train loss: 8.6280   test accuracy: 0.9717
+epoch: 17   train loss: 8.8207   test accuracy: 0.9822
+best model saved at epoch 17
+epoch: 18   train loss: 7.4369   test accuracy: 0.9780
+epoch: 19   train loss: 7.9753   test accuracy: 0.9738
+epoch: 20   train loss: 5.7432   test accuracy: 0.9748
+checkpoint saved at epoch 20
+epoch: 21   train loss: 6.6886   test accuracy: 0.9801
+epoch: 22   train loss: 4.1139   test accuracy: 0.9811
+epoch: 23   train loss: 4.5131   test accuracy: 0.9769
+epoch: 24   train loss: 3.4002   test accuracy: 0.9748
+epoch: 25   train loss: 5.0227   test accuracy: 0.9790
+epoch: 26   train loss: 3.4872   test accuracy: 0.9790
+epoch: 27   train loss: 2.3740   test accuracy: 0.9790
+epoch: 28   train loss: 2.6362   test accuracy: 0.9801
+epoch: 29   train loss: 1.8409   test accuracy: 0.9801
+epoch: 30   train loss: 1.8808   test accuracy: 0.9790
+checkpoint saved at epoch 30
+epoch: 31   train loss: 1.6075   test accuracy: 0.9811
+epoch: 32   train loss: 1.1389   test accuracy: 0.9811
+epoch: 33   train loss: 0.8395   test accuracy: 0.9801
+epoch: 34   train loss: 1.2564   test accuracy: 0.9811
+epoch: 35   train loss: 0.8909   test accuracy: 0.9811
+epoch: 36   train loss: 0.8139   test accuracy: 0.9811
+epoch: 37   train loss: 0.9686   test accuracy: 0.9801
+epoch: 38   train loss: 0.8474   test accuracy: 0.9790
+epoch: 39   train loss: 1.0348   test accuracy: 0.9780
+======== training completes ========
